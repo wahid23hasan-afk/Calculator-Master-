@@ -1,0 +1,209 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wahid Galaxy Shooter</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      background: url('https://i.ibb.co/TYzd9Dp/space-bg.jpg') no-repeat center;
+      background-size: cover;
+    }
+    #scoreBoard {
+      color: white;
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      font-size: 18px;
+      z-index: 1;
+    }
+    #gameOver {
+      display: none;
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 24px;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+  <div id="scoreBoard">Score: 0 | Life: 3</div>
+  <div id="gameOver">Game Over<br><button onclick="location.reload()">Play Again</button></div>
+  <canvas id="game" width="400" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const playerImg = new Image();
+    playerImg.src = "https://i.ibb.co/tH61pLm/player.png";
+
+    const enemyImg = new Image();
+    enemyImg.src = "https://i.ibb.co/xYSzNSB/enemy.png";
+
+    const bulletImg = new Image();
+    bulletImg.src = "https://i.ibb.co/5vM00fM/bullet.png";
+
+    const bossImg = new Image();
+    bossImg.src = "https://i.ibb.co/BqQtSBS/boss.png";
+
+    const ship = { x: 180, y: 520, width: 40, height: 40 };
+    let bullets = [];
+    let enemies = [];
+    let score = 0;
+    let life = 3;
+    let boss = null;
+    let bossLife = 20;
+    let gameRunning = true;
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowLeft" && ship.x > 0) ship.x -= 15;
+      if (e.key === "ArrowRight" && ship.x < canvas.width - ship.width) ship.x += 15;
+      if ((e.key === " " || e.key === "ArrowUp") && gameRunning) {
+        bullets.push({ x: ship.x + 17, y: ship.y, width: 6, height: 20 });
+      }
+    });
+
+    canvas.addEventListener("touchmove", e => {
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      ship.x = touch.clientX - rect.left - ship.width / 2;
+    });
+
+    canvas.addEventListener("touchstart", () => {
+      bullets.push({ x: ship.x + 17, y: ship.y, width: 6, height: 20 });
+    });
+
+    function spawnEnemy() {
+      if (!gameRunning) return;
+      const x = Math.random() * (canvas.width - 40);
+      enemies.push({ x, y: 0, width: 40, height: 40 });
+    }
+
+    function spawnBoss() {
+      if (!gameRunning || boss) return;
+      boss = { x: 100, y: -100, width: 200, height: 80 };
+      bossLife = 20;
+    }
+
+    function drawShip() {
+      ctx.drawImage(playerImg, ship.x, ship.y, ship.width, ship.height);
+    }
+
+    function drawBullets() {
+      bullets.forEach((b, i) => {
+        b.y -= 6;
+        ctx.drawImage(bulletImg, b.x, b.y, b.width, b.height);
+        if (b.y < 0) bullets.splice(i, 1);
+      });
+    }
+
+    function drawEnemies() {
+      enemies.forEach((e, i) => {
+        e.y += 2;
+        ctx.drawImage(enemyImg, e.x, e.y, e.width, e.height);
+        if (e.y > canvas.height) {
+          enemies.splice(i, 1);
+          life--;
+          updateScore();
+          if (life <= 0) endGame();
+        }
+      });
+    }
+
+    function drawBoss() {
+      if (boss) {
+        boss.y += 1;
+        ctx.drawImage(bossImg, boss.x, boss.y, boss.width, boss.height);
+        if (
+          boss.y + boss.height >= ship.y &&
+          boss.x < ship.x + ship.width &&
+          boss.x + boss.width > ship.x
+        ) {
+          life = 0;
+          updateScore();
+          endGame();
+        }
+        if (boss.y > canvas.height) {
+          boss = null;
+        }
+      }
+    }
+
+    function detectCollision() {
+      bullets.forEach((b, bi) => {
+        enemies.forEach((e, ei) => {
+          if (
+            b.x < e.x + e.width &&
+            b.x + b.width > e.x &&
+            b.y < e.y + e.height &&
+            b.y + b.height > e.y
+          ) {
+            bullets.splice(bi, 1);
+            enemies.splice(ei, 1);
+            score += 10;
+            updateScore();
+          }
+        });
+
+        if (boss) {
+          if (
+            b.x < boss.x + boss.width &&
+            b.x + b.width > boss.x &&
+            b.y < boss.y + boss.height &&
+            b.y + b.height > boss.y
+          ) {
+            bullets.splice(bi, 1);
+            bossLife--;
+            if (bossLife <= 0) {
+              score += 100;
+              boss = null;
+              updateScore();
+            }
+          }
+        }
+      });
+    }
+
+    function updateScore() {
+      document.getElementById("scoreBoard").innerText = `Score: ${score} | Life: ${life}`;
+    }
+
+    function endGame() {
+      gameRunning = false;
+      document.getElementById("gameOver").style.display = "block";
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawShip();
+      drawBullets();
+      drawEnemies();
+      drawBoss();
+      detectCollision();
+      requestAnimationFrame(gameLoop);
+    }
+
+    setInterval(spawnEnemy, 1000);
+    setInterval(spawnBoss, 30000);
+    updateScore();
+    gameLoop();
+  </script>
+</body>
+</html>
